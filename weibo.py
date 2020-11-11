@@ -16,40 +16,43 @@ def get_leaderboard(category):
     page = 0
     total_nick_name_list = []
     total_user_url_list = []
+    print("获取榜单%s中........" % (category))
     while count < 100:
         page = page + 1
         params = {
             'category': category,
             'page': page
         }
-        res = requests.get(url, params=params)
-        res_json = html.unescape(res.text)
-        res_dict = json.loads(res_json, strict=False)
-        res_html = etree.HTML(res_dict["data"])
-        # list nickname
-        nick_name = res_html.xpath("//div[@class=\"subinfo_box clearfix\"]/a[2]/span/text()")
-        # list user url
-        user_url = res_html.xpath("//div[@class=\"subinfo_box clearfix\"]/a[1]/@href")
+        try:
+            res = requests.get(url, params=params)
+            res_dict = res.json()
+            res_html = etree.HTML(res_dict["data"])
+            # list nickname
+            nick_name = res_html.xpath("//div[@class=\"subinfo_box clearfix\"]/a[2]/span/text()")
+            # list user url
+            user_url = res_html.xpath("//div[@class=\"subinfo_box clearfix\"]/a[1]/@href")
 
-        new_url_list = []
-        # url处理，统一去除//weibo.com
-        for item in user_url:
-            item = item.replace('//weibo.com', '')
-            item = r"https://weibo.com" + item
-            new_url_list.append(item)
+            new_url_list = []
+            # url处理，统一去除//weibo.com
+            for item in user_url:
+                item = item.replace('//weibo.com', '')
+                item = r"https://weibo.com" + item
+                new_url_list.append(item)
 
-        if len(total_nick_name_list) + len(nick_name) < 100:
-            total_nick_name_list.extend(nick_name)
-            total_user_url_list.extend(new_url_list)
-            count += len(nick_name)
-        else:
-            for index, item in enumerate(nick_name):
-                if count < 100:
-                    total_nick_name_list.append(item)
-                    total_user_url_list.append(new_url_list[index])
-                    count += 1
-                else:
-                    break
+            if len(total_nick_name_list) + len(nick_name) < 100:
+                total_nick_name_list.extend(nick_name)
+                total_user_url_list.extend(new_url_list)
+                count += len(nick_name)
+            else:
+                for index, item in enumerate(nick_name):
+                    if count < 100:
+                        total_nick_name_list.append(item)
+                        total_user_url_list.append(new_url_list[index])
+                        count += 1
+                    else:
+                        break
+        except Exception as e:
+            print("ERROR!"+e)
     return total_nick_name_list, total_user_url_list
 
 #获取uid
@@ -60,13 +63,15 @@ def get_user_uid(total_nick_name_list, total_user_url_list):
         match = pattern.findall(item)
         if match:
             user_uid_list.append(match[0])
+            print("获取uid:"+match[0])
         else:
             nick_name = total_nick_name_list[index]
             uid = find_uid(nick_name)
             if uid:
                 user_uid_list.append(uid)
             else:
-                print("ERROR!")
+                #print("ERROR!")
+                pass
     return user_uid_list
 
 
@@ -93,7 +98,10 @@ def get_json(params, headers):
     try:
         res = requests.get(url, params=params, headers=headers)
         if res.status_code == 200:
-            return res.json()
+            try:
+                return res.json()
+            except ValueError as e:
+                return('Error', e.args)
     except requests.ConnectionError as e:
         return('Error', e.args)
 
@@ -183,18 +191,22 @@ def get_comment(weibo_id):
     try:
         res = requests.get(url, params=params, headers=headers)
         if res.status_code == 200:
-            content = res.json()
-            if content.__contains__("data"):
-                if content['data'].__contains__("data"):
-                    comment_str = ""
-                    for index, item in enumerate(content['data']['data']):
-                        text = item['text']
-                        comment = re.sub('<[^<]+?>', '', text).replace('\n', '').strip()
-                        comment_str += str(index) + comment + '\n'
-                    return comment_str
-            else:
-                print("该微博暂时无评论！")
-                return ""
+            print(res.text)
+            try:
+                content = res.json()
+                if content.__contains__("data"):
+                    if content['data'].__contains__("data"):
+                        comment_str = ""
+                        for index, item in enumerate(content['data']['data']):
+                            text = item['text']
+                            comment = re.sub('<[^<]+?>', '', text).replace('\n', '').strip()
+                            comment_str += str(index) + comment + '\n'
+                        return comment_str
+                else:
+                    print("该微博暂时无评论！")
+                    return ""
+            except ValueError as e:
+                pass
     except requests.ConnectionError as e:
         return ""
 
@@ -223,6 +235,7 @@ def generate_user_info_excel(user_info_list, file_code):
         worksheet.write_string(row, col + 5, str(item['follow_count']))
         worksheet.write_string(row, col + 6, str(item['description']))
         row += 1
+        print("保存成功！"+str(item['id']))
     workbook.close()
 
 def generate_user_weibo_excel(user_weibo_list, uid):
@@ -249,6 +262,7 @@ def generate_user_weibo_excel(user_weibo_list, uid):
         worksheet.write_string(row, col + 5, str(item['reposts']))
         worksheet.write_string(row, col + 6, str(item['comments_word']))
         row += 1
+        print("保存成功！"+str(item['id']))
     workbook.close()
 
 #获取榜单前100数据
@@ -289,6 +303,7 @@ if __name__ == "__main__":
 
     # 99991 日榜 99992周榜 9999月榜
     directory = ["99991", "99992", "99993"]
+    #directory = ["99992"]
     for category in directory:
         total_nick_name_list, total_user_url_list = get_leaderboard(category=category)
         total_user_uid = get_user_uid(total_nick_name_list, total_user_url_list)

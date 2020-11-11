@@ -12,3 +12,7 @@ user_weibo开头的文件为用户前20条微博的信息与评论汇总
 user_info文件夹存储用户信息xlsx
 user_weibo文件夹存储用户微博xlsx
 总文件数小于300，因为三个榜单有大量重叠用户
+
+4.
+执行
+pip install -r requirements.txt
